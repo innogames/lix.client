@@ -8,6 +8,9 @@ abstract UserVersion(UserVersionData) from UserVersionData to UserVersionData {
   
   static var hex = [for (c in '0123456789abcdefABCDEF'.split('')) c.charCodeAt(0) => true];
   
+  @:from static function ofResolvedUserVersionData(v:lix.client.haxe.ResolvedVersion.ResolvedUserVersionData):UserVersion
+    return ofResolved(v);
+
   @:from static function ofResolved(v:ResolvedVersion):UserVersion
     return switch v {
       case ROfficial(version): UOfficial(version);
