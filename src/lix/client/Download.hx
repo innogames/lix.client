@@ -289,6 +289,10 @@ class Download {
         options.headers = {};
       options.headers['user-agent'] = Download.USER_AGENT;
 
+      var authHeaders = Auth.getAuthHeaders(url);
+      for (field in Reflect.fields(authHeaders))
+        Reflect.setField(options.headers, field, Reflect.field(authHeaders, field));
+
       function fail(e:js.Error)
         cb(Failure(tink.core.Error.withData('Failed to download $url because ${e.message}', e)));
 
