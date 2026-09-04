@@ -35,5 +35,8 @@
     "bugs": {
         "url": "https://github.com/lix-pm/lix/issues"
     },
-    "homepage": "https://github.com/lix-pm/lix#readme"
+    "homepage": "https://github.com/lix-pm/lix#readme",
+    "publishConfig": {
+        "registry": "https://artifacts.innogames.de/artifactory/api/npm/innogames-npm/"
+    }
 }
