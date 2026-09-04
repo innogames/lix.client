@@ -3,7 +3,7 @@ package lix.client.sources;
 import tink.url.Auth;
 import tink.url.Path;
 
-@:tink class GitHub {
+class GitHub {
 
   static function isArchive(p:Path)
     return switch p.parts() {
@@ -60,7 +60,7 @@ import tink.url.Path;
             return new Error('Failed to lookup sha for github:$owner/$project$s');
           });
       default:
-        Download.text('https://${credentials}api.github.com/repos/$owner/$project/commits?sha=$version')
+        Download.text('https://${credentials.toString()}api.github.com/repos/$owner/$project/commits?sha=$version')
           .next(function (s)
             try
               return(s.parse()[0].sha:String)
@@ -84,9 +84,9 @@ import tink.url.Path;
         grabCommit(owner, project, '').next(doGet);
       case sha if (sha.length == 40):
         return ({
-          normalized: 'gh://${credentials}github.com/$owner/$project#$sha',
+          normalized: 'gh://${credentials.toString()}github.com/$owner/$project#$sha',
           dest: Computed(function (l) return [l.name, l.version, 'github', sha]),
-          url: 'https://${credentials}github.com/$owner/$project/archive/$sha.tar.gz',
+          url: 'https://${credentials.toString()}github.com/$owner/$project/archive/$sha.tar.gz',
           lib: { name: Some(project), version: None },
         } : ArchiveJob);
       case v:

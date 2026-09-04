@@ -1,11 +1,14 @@
 package lix.cli;
 
-class HaxelibCmd {
-  static public function ensure(logger)
-    return NekoCmd.ensure(logger).next(
-      function (_) return HaxeCmd.ensure(logger)
-    );
+import lix.client.haxe.Switcher;
 
-  static function main() 
-    Command.attempt(ensure(Logger.get()), @:privateAccess HaxelibCli.main);
+class HaxelibCmd {
+  static function main() {
+    final scope = Scope.seek();
+
+    Command.attempt(
+      Switcher.ensureNeko(scope.haxeInstallation.neko, Logger.get()), 
+      () -> HaxelibCli.exec(scope)
+    );
+  }
 }

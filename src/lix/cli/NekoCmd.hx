@@ -1,10 +1,12 @@
 package lix.cli;
 
 class NekoCmd {
-  static public function ensure(logger)
-    return 
-      lix.client.haxe.Switcher.ensureNeko(logger);
+  static function main() {
+    final neko = NekoCli.findNeko();
 
-  static function main() 
-    Command.attempt(ensure(Logger.get()), @:privateAccess NekoCli.main);
+    Command.attempt(
+      lix.client.haxe.Switcher.ensureNeko(neko, Logger.get()), 
+      () -> NekoCli.exec(neko)
+    );
+  }
 }

@@ -1,64 +1,71 @@
 package lix.client;
 
-import haxe.DynamicAccess;
-import haxeshim.Scope.*;
+import haxeshim.scope.Scope.*;
+import haxeshim.sys.Exec;
 import lix.api.Api;
 import lix.client.Archives;
 
 using haxe.Json;
 
-@:tink class Libraries {
+class Libraries {
 
-  public var scope(default, null):Scope = _;
+  public final scope:Scope;
 
-  var urlToJob:Url->Promise<ArchiveJob> = _;
-  var resolver:Array<Dependency>->Promise<Array<ArchiveJob>> = _;
+  final urlToJob:Url->Promise<ArchiveJob>;
+  final resolver:Array<Dependency>->Promise<Array<ArchiveJob>>;
 
-  public var logger(default, null):Logger = _;
-  public var force(default, null):Bool = _;
+  public final logger:Logger;
+  public final force:Bool;
 
-  public function downloadUrl(url:Url, ?options)
+  public function new(scope, urlToJob, resolver, logger, force) {
+    this.scope = scope; 
+    this.urlToJob = urlToJob; 
+    this.resolver = resolver; 
+    this.logger = logger; 
+    this.force = force;
+  }
+
+  public function downloadUrl(url:Url, ?options) 
     return downloadArchive(urlToJob(url), options);
 
-  public function downloadArchive(a:Promise<ArchiveJob>, _ = { into: (null:String) }):Promise<DownloadedArchive>
-    return a.next(
-      function (a) {
+  public function downloadArchive(a:Promise<ArchiveJob>, ?options:{ ?into:String }):Promise<DownloadedArchive>
+    return a.next(a -> {
+      var cacheFile = null,
+          into = options?.into;
 
-        var cacheFile = null;
+      if (into == null)
+        switch a.dest {
+          case Fixed(path):
+            into = DownloadedArchive.path(path);
+          case Computed(_):
+            cacheFile = '${scope.libCache}/.cache/libNames/${DownloadedArchive.escape(a.normalized)}';
+            if (cacheFile.exists())
+              into = cacheFile.getContent();
+        }
 
-        if (into == null)
-          switch a.dest {
-            case Fixed(path):
-              into = DownloadedArchive.path(path);
-            case Computed(_):
-              cacheFile = '${scope.libCache}/.cache/libNames/${DownloadedArchive.escape(a.normalized)}';
-              if (cacheFile.exists())
-                into = cacheFile.getContent();
-          }
-
-        var exists = into != null && '${scope.libCache}/$into'.exists();
-        return
-          if (exists && !force) {
-            logger.success('already downloaded: ${a.normalized}');
-            DownloadedArchive.existent(into, scope.libCache, a);
-          }
-          else {
-            logger.info('${if (exists) "forcedly redownloading" else "downloading"} ${a.normalized}');
-            final dest = '${scope.haxeshimRoot}/downloads/download@${Math.floor(Date.now().getTime())}_${js.Node.process.pid}';
-            (switch a.kind {
-              case null: Download.archive(a.url, 0, dest, logger);
-              case Zip: Download.zip(a.url, 0, dest, logger);
-              case Tar: Download.tar(a.url, 0, dest, logger);
-              case Custom(load):
-                load({ dest: dest, logger: logger, source: a.normalized, scope: scope });
-            })
-              .next(dir => DownloadedArchive.fresh(dir, scope.libCache, into, a))
-              .next(arch =>
-                if (cacheFile != null)
-                  Fs.save(cacheFile, arch.relRoot).swap(arch)
-                else arch
-              );
-          }
+      var exists = into != null && '${scope.libCache}/$into'.exists();
+      return
+        if (exists && !force) {
+          logger.success('already downloaded: ${a.normalized}');
+          DownloadedArchive.existent(into, scope.libCache, a);
+        }
+        else {
+          logger.info('${if (exists) "forcedly redownloading" else "downloading"} ${a.normalized}');
+          final dest = '${scope.haxeshimRoot}/downloads/download@${Math.floor(Date.now().getTime())}_${js.Node.process.pid}';
+          (switch a.kind {
+            case null: Download.archive(a.url, 0, dest, logger);
+            case Zip: Download.zip(a.url, 0, dest, logger);
+            case Tar: Download.tar(a.url, 0, dest, logger);
+            case Custom(load):
+              load({ dest: dest, logger: logger, source: a.normalized, scope: scope });
+          })
+            .next(dir -> DownloadedArchive.fresh(dir, scope.libCache, into, a))
+            .next(arch ->
+              if (cacheFile != null)
+                Fs.save(cacheFile, arch.relRoot).swap(arch)
+              else arch
+            );
+        }
       }
     );
 
@@ -108,12 +115,21 @@ using haxe.Json;
         var manifest = '$absPath/haxelib.json';
         Fs.get(manifest)
           .next(s ->
-            try (haxe.Json.parse(s):{ ?version:String, ?classPath:String, ?dependencies:haxe.DynamicAccess<String> })
+            try (haxe.Json.parse(s):{ ?name:String, ?version:String, ?classPath:String, ?main:String, ?dependencies:haxe.DynamicAccess<String> })
             catch (e:Dynamic) new Error('cannot parse $manifest')
           )
           .next(
             info -> {
               var lines = [];
+
+              if (info.main != null || '$absPath/run.n'.exists()) {
+                var runName = switch info.name {
+                  case null | '': lib;
+                  case name: name;
+                };
+                lines.push('# @run: haxelib run-dir $runName "$usedPath"');
+              }
+
               if (info.dependencies != null)
                 for (k => v in info.dependencies)
                   lines.push('-lib $k');
@@ -146,13 +162,13 @@ using haxe.Json;
   public function installArchive(
       a:Promise<ArchiveJob>,
       ?as:LibVersion,
-      options = {
-        alreadyInstalled: new Map(),
-        flat: false,
-      }
+      ?options:{
+        ?alreadyInstalled:Map<String, Bool>,
+        ?flat:Bool,
+      } 
     ):Promise<Noise>
 
-    return downloadArchive(a).next(function (a) {
+    return downloadArchive(a).next(a -> {
       var extra =
         switch '${a.absRoot}/extraParams.hxml' {
           case found if (found.exists()):
@@ -165,6 +181,9 @@ using haxe.Json;
 
       var infos:ArchiveInfos = a.infos;
 
+      options ??= {};
+      options.alreadyInstalled ??= new Map();
+
       var name = as.name.or(infos.name),
           version = as.version.or(infos.version);
 
@@ -176,7 +195,7 @@ using haxe.Json;
       var DOWNLOAD_LOCATION = '$${$LIBCACHE}/${a.relRoot}';
 
       function interpolate(s)
-        return scope.interpolate(s, switch _ {
+        return scope.interpolate(s, v -> switch v {
           case 'DOWNLOAD_LOCATION': DOWNLOAD_LOCATION;
           default: null;
         });
@@ -196,8 +215,8 @@ using haxe.Json;
             Exec.shell(
               cmd,
               scope.interpolate(cwd),
-              scope.haxeInstallation.env()
-            ).map(_ => Noise);
+              scope.haxeInstallation.env
+            ).map(_ -> Noise);
           }
           else
             Noise;
@@ -215,7 +234,7 @@ using haxe.Json;
         switch infos.runAs({ libRoot: scope.interpolate(DOWNLOAD_LOCATION) }) {
           case None:
           case Some(v):
-            directives.push('# @run: ' + Args.interpolate(v, switch _ {
+            directives.push('# @run: ' + Args.interpolate(v, v -> switch v {
               case 'DOWNLOAD_LOCATION': DOWNLOAD_LOCATION;
               case v: '$${$v}';
             }).sure());
@@ -246,42 +265,44 @@ using haxe.Json;
         return
           if (options.flat) Promise.NOISE;
           else
-            Future.ofMany(//TODO: this relies on the implementation being sequential (which it currently is, but that may change)
-              [for ({ name: lib, value: dep } in infos.dependencies)
-                Future.async(//TODO: it should probably be fine to skip this lazy wrapper
-                  function (done)
-                    if ('${scope.scopeLibDir}/$lib.hxml'.exists() && options.alreadyInstalled[lib]) //TODO: this should be in some function
-                      done(Success(Noise))
-                    else switch [dep, infos.haxeshimDependencies[lib]] {
-                      case [FromUrl(url), null]:
-                        installUrl(url, { name: Some(lib), version: None }, options)
-                          .next(n -> {
-                            options.alreadyInstalled[lib] = true;
-                            n;
-                          }).handle(done);
-                      case [FromHxml(path), _] | [_, path]:
-                        function install(lib, path)
-                          return
-                            if (options.alreadyInstalled[lib]) Noise;
-                            else installFromLibHxml(lib, path)
-                              .next(deps -> {
-                                options.alreadyInstalled[lib] = true;
-                                Promise.inSequence(
-                                  [for (name in deps)
-                                    install(name, infos.haxeshimDependencies[name])
-                                  ]
-                                );
-                              });
+            Future.inSequence([for (d in infos.dependencies) {
+              var lib = d.name,
+                  dep = d.value;
+              if ('${scope.scopeLibDir}/$lib.hxml'.exists() && options.alreadyInstalled[lib]) //TODO: this should be in some function
+                Promise.NOISE;
+              else switch [dep, infos.haxeshimDependencies[lib]] {
+                case [FromUrl(url), null]:
+                  installUrl(url, { name: Some(lib), version: None }, options)
+                    .next(n -> {
+                      options.alreadyInstalled[lib] = true;
+                      n;
+                    });
+                case [FromHxml(path), _] | [_, path]:
+                  function install(lib, path)
+                    return
+                      if (options.alreadyInstalled[lib]) Noise;
+                      else installFromLibHxml(lib, path)
+                        .next(deps -> {
+                          options.alreadyInstalled[lib] = true;
+                          Promise.inSequence(
+                            [for (name in deps)
+                              install(name, infos.haxeshimDependencies[name])
+                            ]
+                          );
+                        });
 
-                        install(lib, path).handle(done);
-                    },
-                  true
-                )
-              ]
-            )
-            .next(results => switch [for (Failure(e) in results) e] {
-              case []: Noise;
-              case errors: Error.withData('Failed to install dependencies of $name :\n  ' + errors.map(e => e.message).join('\n  '), errors);
+                  install(lib, path);
+              }
+            }])
+            .next(results -> {
+              final errors = [for (r in results) switch r {
+                case Failure(e): e;
+                default: continue;
+              }];
+              switch errors {
+                case []: Noise;
+                case errors: Error.withData('Failed to install dependencies of $name :\n  ' + errors.map(e -> e.message).join('\n  '), errors);
+              }
             });
 
       return
@@ -291,11 +312,11 @@ using haxe.Json;
             Noise;
           })
           .next(_ -> installDependencies())
-          .next(_ =>
+          .next(_ ->
             if (!a.alreadyDownloaded) exec('post download', infos.postDownload, DOWNLOAD_LOCATION)
             else Noise
           )
           .next(saveHxml)
-          .next(_ => exec('post install', infos.postInstall));
+          .next(_ -> exec('post install', infos.postInstall));
     });
 }

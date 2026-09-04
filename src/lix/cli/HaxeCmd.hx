@@ -1,5 +1,7 @@
 package lix.cli;
 
+import haxeshim.scope.Scope;
+
 class HaxeCmd {
   static public function ensureScope():Promise<Noise>
     return

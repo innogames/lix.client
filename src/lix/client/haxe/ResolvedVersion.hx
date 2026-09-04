@@ -17,5 +17,9 @@ abstract ResolvedVersion(ResolvedUserVersionData) from ResolvedUserVersionData t
       }
   
   public function toString():String    
-    return (this : UserVersion).toString();
+    return switch this {
+      case RNightly(nightly): nightly.hash;
+      case ROfficial(version): version;
+      case RCustom(path): path;
+    }
 }

@@ -1,4 +1,6 @@
 import haxeshim.*;
+import haxeshim.sys.*;
+import haxeshim.scope.*;
 
 import tink.Url;
 using sys.FileSystem;

@@ -1,8 +1,7 @@
 package lix.client;
 
-using haxe.io.Path;
+import haxeshim.scope.Scope;
 
-using sys.FileSystem;
 using sys.io.File;
 using haxe.Json;
 
@@ -37,16 +36,17 @@ enum ArchiveDependency {
 
 typedef HxmlPath = String;
 
-@:structInit class ArchiveInfos {
-  public var name(default, null):String;
-  public var version(default, null):String;
-  public var classPath(default, null):String;
-  public var hasNdll(default, null):Bool;
-  public var runAs(default, null):{ libRoot: String }->Option<String>;
-  public var dependencies(default, null):ArchiveDependencies;
-  public var haxeshimDependencies(default, null):HaxeshimDependencies;
-  @:optional public var postDownload(default, null):String;
-  @:optional public var postInstall(default, null):String;
+@:structInit @:publicFields 
+class ArchiveInfos {
+  final name:String;
+  final version:String;
+  final classPath:String;
+  final hasNdll:Bool;
+  final runAs:{ libRoot: String }->Option<String>;
+  final dependencies:ArchiveDependencies;
+  final haxeshimDependencies:HaxeshimDependencies;
+  @:optional final postDownload:String;
+  @:optional final postInstall:String;
 }
 
 
@@ -83,7 +83,7 @@ class DownloadedArchive {
   /**
    * The job the archive originated from
    */
-  public var job(default, null):ArchiveJob;
+  public final job:ArchiveJob;
 
   public var alreadyDownloaded(default, null):Bool = true;
 
@@ -265,7 +265,7 @@ class DownloadedArchive {
           version: info.version,
           classPath: guessClassPath(),
           hasNdll: hasNdll,
-          runAs: function (_) return None,
+          runAs: _ -> None,
           dependencies: haxeshimDependencies,
           haxeshimDependencies: null,
         }
@@ -276,7 +276,7 @@ class DownloadedArchive {
           version: lib.version.or('0.0.0'),
           classPath: guessClassPath(),
           hasNdll: hasNdll,
-          runAs: function (_) return None,
+          runAs: _ -> None,
           dependencies: haxeshimDependencies,
           haxeshimDependencies: null,
         }

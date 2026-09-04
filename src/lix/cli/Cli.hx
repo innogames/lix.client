@@ -1,9 +1,9 @@
 package lix.cli;
 
+import haxeshim.sys.*;
 import haxe.DynamicAccess;
 import lix.client.Archives;
 import lix.client.sources.*;
-import lix.api.Api;
 import lix.client.*;
 
 using haxe.io.Path;
@@ -192,8 +192,8 @@ class Cli {
 
           case []:
 
-            lix.client.haxe.Switcher.ensureNeko(logger)
-              .next(function (_) return
+            lix.client.haxe.Switcher.ensureNeko(scope.haxeInstallation.neko, logger)
+              .next(_ ->
                 hx.resolveOnline(scope.config.version)
                   .next(hx.download.bind(_, { force: false }))
                   .next(function (_) {
@@ -222,7 +222,8 @@ class Cli {
         switch args {
           case []: new Error('no path supplied');
           default:
-            new haxeshim.HaxelibCli(scope).run(args.slice(1));
+            var sliced = args.slice(1);
+            new HaxelibCli(scope).run(sliced, sliced); // TODO: should we handle flags (e.g. --cwd/--global) as in HaxelibShimCli?
             Noise;
         }
       ),
@@ -231,12 +232,12 @@ class Cli {
         case null: None;
         case '-lib' | '--library' | '-L' | '--run' | (_.endsWith('.hxml') => true):
           Some(() -> {
-            @:privateAccess new haxeshim.HaxeCli(scope).dispatch(args);
+            @:privateAccess new HaxeCli(scope).dispatch(args);
             Noise;
           });
         case lib if (scope.libHxml(lib).exists()):
           Some(() -> {
-            new haxeshim.HaxelibCli(scope).run(args);
+            new HaxelibCli(scope).run(args, args); // TODO: should we handle flags (e.g. --cwd/--global) as in HaxelibShimCli?
             Noise;
           });
         case cls if (isClassName(cls)):
@@ -346,7 +347,7 @@ class Cli {
                                     default: ['-main', cls];
                                   });
 
-                                  switch Exec.sync(scope.haxeInstallation.compiler, cwd, args, scope.haxeInstallation.env()) {
+                                  switch Exec.sync(scope.haxeInstallation.compiler, cwd, args, scope.haxeInstallation.env) {
                                     case Success(0):
                                       switch nodeFile {
                                         case null: Noise;

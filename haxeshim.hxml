@@ -12,5 +12,5 @@
 -main lix.cli.NekoCmd
 -js bin/nekoshim.js
 --next
--main haxeshim.PostInstall
+-main haxeshim.exify.PostInstall
 -js bin/postinstall.js

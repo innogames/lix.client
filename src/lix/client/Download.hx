@@ -1,17 +1,12 @@
 package lix.client;
 
-import haxe.Timer;
-import lix.client.uncompress.*;
+import js.node.url.URL;
 import js.node.Buffer;
-import js.node.Url;
 import js.node.Http;
-import js.Node.*;
-import js.node.stream.Readable.IReadable;
 import js.node.http.ClientRequest;
 import js.node.http.IncomingMessage;
-
-using tink.CoreApi;
-using StringTools;
+import js.node.stream.Readable.IReadable;
+import lix.client.uncompress.*;
 
 typedef Directory = String;
 
@@ -282,7 +277,19 @@ class Download {
   static function download<T>(url:String, handler:Handler<T>):Promise<T>
     return Future.async(function (cb) {
 
-      var options:HttpRequestOptions = cast Url.parse(url);
+      var options = {
+        var u = new URL(url);
+        var ret:HttpRequestOptions = {
+          protocol: u.protocol,
+          host: u.host,
+          path: '${u.pathname}${u.search ?? ""}',
+        }
+
+        if (u.username != null && u.password != null) 
+          ret.auth = u.username + ':' + u.password;
+
+        ret;
+      };
 
       options.agent = false;
       if (options.headers == null)
@@ -315,14 +322,10 @@ class Download {
               });
             case v:
 
-              download(switch Url.parse(v) {
-                case { protocol: null }:
-                  options.protocol + '//' + options.host + v;
-                default: v;
-              }, handler).handle(cb);
+              download(new URL(v, url).toString(), handler).handle(cb);
           }
         });
     });
 
-  static public var USER_AGENT = 'switchx';
+  static public var USER_AGENT = 'lix';
 }

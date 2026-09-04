@@ -1,12 +1,10 @@
 -D lix.client
---macro addMetadata('@:using(tmp.ArrayTools)', 'Array')
 -lib haxeshim
 -lib tink_semver
 -lib tink_web
 -lib hx3compat
 -lib compiletime
 -lib hxnodejs
--lib tink_lang
 
 -cp src
 -cp patch 

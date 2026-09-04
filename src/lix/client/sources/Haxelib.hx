@@ -5,11 +5,17 @@ import tink.url.Host;
 
 using tink.CoreApi;
 
-@:tink class Haxelib {
-  static var OFFICIAL = 'https://lib.haxe.org/';
+class Haxelib {
+  static inline var OFFICIAL = 'https://lib.haxe.org/';
 
-  @:lazy var isOfficial:Bool = OFFICIAL == baseURL;
-  var baseURL:String = @byDefault OFFICIAL;
+  public var isOfficial(get, null):Bool;
+    function get_isOfficial() return this.isOfficial ??= OFFICIAL == baseURL;
+
+  final baseURL:String;
+
+  public function new(baseURL = OFFICIAL) {
+    this.baseURL = baseURL;
+  }
 
   function getBaseUrl(?options:{ host: tink.url.Host }):Url
     return switch options {
@@ -94,12 +100,12 @@ using tink.CoreApi;
       );
 
   function getInfos(name:String, ?options):Promise<ProjectInfos>
-    return Future.async(function (cb) {
-      var cnx = haxe.remoting.HttpAsyncConnection.urlConnect(resolve('/api/3.0/index.n', options));
-      cnx.setErrorHandler(function (e) cb(Failure(Error.withData('Failed to get version information from haxelib because $e', e))));
+    return Promise.irreversible((resolve, reject) -> {
+      var cnx = haxe.remoting.HttpAsyncConnection.urlConnect(this.resolve('/api/3.0/index.n', options));
+      cnx.setErrorHandler(e -> reject(Error.withData('Failed to get version information from haxelib because $e', e)));
 
       var repo = new Proxy(cnx.resolve('api'));
-      repo.infos(name, function (s) cb(Success(s)));
+      repo.infos(name, resolve);
     });
 
 }
